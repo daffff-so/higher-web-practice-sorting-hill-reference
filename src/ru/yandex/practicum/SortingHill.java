@@ -37,9 +37,9 @@ public class SortingHill {
     private final Collection<SortingHandler> handlers = new ArrayList<>();
 
     private final int numberOfPaths;
-    private final Map<Integer, String> assignedPaths = new HashMap<>(); //номер пути -> номер поезда
-    private final List<String> wagonBuffer = new LinkedList<>(); //вагоны нераспределенные
-    private final Map<String, List<String>> trainsFormed = new HashMap<>(); //номер поезда -> список локомотив + вагоны
+    private final Map<Integer, String> assignedPaths = new HashMap<>();
+    private final List<String> wagonBuffer = new LinkedList<>();
+    private final Map<String, List<String>> trainsFormed = new HashMap<>();
     private long trainIndex = 0;
 
     private SortingHandler hiddenWatchHandler;
@@ -70,6 +70,7 @@ public class SortingHill {
         System.out.printf("Начало рабочей смены, очередь вагонов: %d\n", wagonLeft);
         sortingHill.handleEvent(SHIFT_STARTED_EVENT);
         while (!sortingHill.wagonBuffer.isEmpty()) {
+
             try {
                 String nextEvent = sortingHill.checkEvent(EVENTS_BALANCED[rand.nextInt(EVENTS_BALANCED.length)]);
                 if (nextEvent != null) {
@@ -78,8 +79,7 @@ public class SortingHill {
                     Thread.sleep(rand.nextLong(100));
                 }
             } catch (HiddenException he) {
-                //ничего не делаем, это для внутреннего пользования
-                System.out.println("watch reject: " + he.getMessage()); //TODO закомментировать
+                System.out.println("watch reject: " + he.getMessage());
             } catch (RuntimeException e) {
                 System.err.printf("Произошла ошибка обработки: %s\n", e.getMessage());
             }
@@ -95,12 +95,18 @@ public class SortingHill {
             case SHIFT_STARTED_EVENT:
                 hiddenWatchHandler.startShift();
                 handlers.forEach(SortingHandler::startShift);
+                handleEvent(PREPARE_PATH_EVENT);
+                handleEvent(TRAIN_PLANNED_EVENT);
                 break;
             case SHIFT_ENDED_EVENT:
                 int lastTrainsCount = 0;
-                for (Integer path : assignedPaths.keySet()) {
+                for (Integer path : new ArrayList<>(assignedPaths.keySet())) {
                     String train = assignedPaths.get(path);
+                    if (train == null) continue;
+
                     List<String> trainContent = trainsFormed.get(train);
+                    if (trainContent == null) continue;
+
                     if (trainContent.size() > 1) {
                         lastTrainsCount++;
                     } else {
@@ -127,9 +133,9 @@ public class SortingHill {
                 String wagonInfo = wagonBuffer.getFirst();
                 try {
                     hiddenWatchHandler.handleWagon(wagonInfo);
-                    wagonBuffer.removeFirst(); //обработали, просто удаляем
+                    wagonBuffer.removeFirst();
                 } catch (HiddenException he) {
-                    wagonBuffer.add(wagonBuffer.removeFirst()); //добавляем в конец, чтобы не застопорилась вся очередь
+                    wagonBuffer.add(wagonBuffer.removeFirst());
                     watcherException = he;
                 }
                 handlers.forEach(h -> h.handleWagon(wagonInfo));
@@ -175,9 +181,14 @@ public class SortingHill {
                 }
                 break;
             case LOCO_ARRIVED_EVENT:
-                if (!trainsFormed.containsValue(Collections.emptyList())) {
-                    return null;
+                boolean hasEmptyTrain = false;
+                for (List<String> content : trainsFormed.values()) {
+                    if (content != null && content.isEmpty()) {
+                        hasEmptyTrain = true;
+                        break;
+                    }
                 }
+                if (!hasEmptyTrain) return null;
                 break;
             case TRAIN_PLANNED_EVENT:
                 if (!assignedPaths.containsValue(null)) {
@@ -232,7 +243,6 @@ public class SortingHill {
 
         @Override
         public void init(SortingHill sortingHill) {
-            //пусто
         }
 
         @Override
@@ -267,8 +277,8 @@ public class SortingHill {
                                     }
                                     break;
                                 default:
-                                    if (!wagonType.equals(WAGON_PASS) || trainContent.size() == 1) { //пассажирский вагон только в свой тип (выше обработано) или в пустой поезд (только локомотив)
-                                        trainCandidate = train; //тип поезда ещё не назначен, любой тип вагона примет, но придётся это учесть далее
+                                    if (!wagonType.equals(WAGON_PASS) || trainContent.size() == 1) {
+                                        trainCandidate = train;
                                     }
                             }
                         }
@@ -386,7 +396,6 @@ public class SortingHill {
 
         @Override
         public void startShift() {
-            //пусто
         }
 
         @Override
